@@ -13,6 +13,7 @@ export PATH="$BIN_DIR:$PATH"
 BINUTILS_VER="2.44"
 GCC_VER="14.2.0"
 TARGET="x86_64-elf"
+RUST_TARGET="x86_64-unknown-none"
 
 run_step() {
     local label="$1"
@@ -47,6 +48,12 @@ run_step() {
     wait "$pid"
     rm -f "$done_file" "$status_file"
 }
+
+if ! command -v cargo >/dev/null 2>&1; then
+    run_step "fenwick-rust" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal'
+    source "$HOME/.cargo/env" || true
+    rustup target add "$RUST_TARGET"
+fi
 
 cd "$TEMP_DIR"
 
@@ -108,7 +115,20 @@ INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 exec nasm -f elf64 "$@"
 EOF
 
-chmod +x "$BIN_DIR/fenwick-gcc" "$BIN_DIR/fenwick-ldd" "$BIN_DIR/fenwind-objcopy" "$BIN_DIR/fenwick-nasm"
+cat > "$BIN_DIR/fenwick-cargo" << 'EOF'
+#!/usr/bin/env bash
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$HOME/.cargo/bin/cargo" ]; then
+    exec "$HOME/.cargo/bin/cargo" "$@"
+elif command -v cargo >/dev/null 2>&1; then
+    exec cargo "$@"
+else
+    echo "cargo not found" >&2
+    exit 1
+fi
+EOF
+
+chmod +x "$BIN_DIR/fenwick-gcc" "$BIN_DIR/fenwick-ldd" "$BIN_DIR/fenwind-objcopy" "$BIN_DIR/fenwick-nasm" "$BIN_DIR/fenwick-cargo"
 
 TOOLCHAIN_BIN_WIN="$(cygpath -w "$BIN_DIR")"
 echo "$TOOLCHAIN_BIN_WIN"
