@@ -1,11 +1,13 @@
+#include "lib/libk/libk.h"
+
 void krnl_main() {
-    char* video = (char*)0xB8000;
-    const char* str = "Hola mundo!";
-    int i = 0;
-    while (str[i]) {
-        video[i*2] = str[i];
-        video[i*2+1] = 0x0F;
-        i++;
-    }
-    while(1);
+    kclear_screen();
+    kset_color(0x1F);
+    kputs("========================================\n");
+    kputs("  Welcome to FenwickOS!\n");
+    kputs("========================================\n\n");
+    kset_color(0x0F);
+    kprintf("krnl_main loaded at %p\n", (void*)krnl_main);
+    kputs("libk loaded successfully\n");
+    while (1);
 }
