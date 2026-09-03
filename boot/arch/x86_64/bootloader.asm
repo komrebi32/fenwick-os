@@ -1,6 +1,6 @@
 bits 32
 
-section .text
+section .boot
 global start
 extern krnl_main
 
