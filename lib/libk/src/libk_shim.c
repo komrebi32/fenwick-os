@@ -1,4 +1,5 @@
-#include "../libk.h"
+#include <libk.h>
+#include <stdarg.h>
 
 void kprintf(const char* fmt, ...) {
     va_list args;

@@ -1,4 +1,4 @@
-use crate::stdio;
+use crate::stdio::{kclear_screen, kputs, kset_color};
 
 #[no_mangle]
 pub unsafe extern "C" fn kpanic(msg: *const u8) -> ! {

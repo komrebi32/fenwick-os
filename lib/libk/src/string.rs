@@ -67,7 +67,7 @@ pub unsafe extern "C" fn kstrncpy(dest: *mut u8, src: *const u8, n: usize) -> *m
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn kstrcmp(s1: *const u8, s2: *const u8) -> i32 {
+pub unsafe extern "C" fn kstrcmp(mut s1: *const u8, mut s2: *const u8) -> i32 {
     loop {
         let a = *s1;
         let b = *s2;

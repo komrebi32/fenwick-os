@@ -1,5 +1,3 @@
-use crate::string;
-
 const VGA_BUFFER: *mut u8 = 0xB8000 as *mut u8;
 const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;
@@ -117,7 +115,7 @@ pub unsafe extern "C" fn kprintf_va(fmt: *const u8, mut args: *const u64) {
                     args = args.add(1);
                 }
                 b'd' => {
-                    let mut val = *args as usize;
+                    let val = *args as usize;
                     if val == 0 {
                         kputc(b'0');
                     } else {
