@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -e
 
+echo "Checking system dependencies..."
+
+NEEDED_PKGS=""
+command -v nasm >/dev/null 2>&1 || NEEDED_PKGS="$NEEDED_PKGS nasm"
+command -v grub-mkrescue >/dev/null 2>&1 || NEEDED_PKGS="$NEEDED_PKGS grub2-common grub-pc-bin xorriso"
+command -v curl >/dev/null 2>&1 || NEEDED_PKGS="$NEEDED_PKGS curl"
+command -v make >/dev/null 2>&1 || NEEDED_PKGS="$NEEDED_PKGS make"
+
+if [ -n "$NEEDED_PKGS" ]; then
+    echo "Installing: $NEEDED_PKGS"
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq $NEEDED_PKGS
+fi
+
 TOOLCHAIN_DIR="$(cd "$(dirname "$0")/.." && pwd)/toolchain/fenwick-toolchain"
 BIN_DIR="$TOOLCHAIN_DIR/bin"
 TEMP_DIR="$TOOLCHAIN_DIR/temp"
@@ -50,6 +64,7 @@ run_step() {
 }
 
 if ! command -v cargo >/dev/null 2>&1; then
+    echo "Installing Rust toolchain..."
     run_step "fenwick-rust" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal'
     source "$HOME/.cargo/env" || true
     rustup target add "$RUST_TARGET"
@@ -58,22 +73,27 @@ fi
 cd "$TEMP_DIR"
 
 if [ ! -f "binutils-$BINUTILS_VER.tar.gz" ]; then
+    echo "Downloading binutils..."
     curl -sLO "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VER.tar.gz"
 fi
 
 if [ ! -f "gcc-$GCC_VER.tar.gz" ]; then
+    echo "Downloading gcc..."
     curl -sLO "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VER/gcc-$GCC_VER.tar.gz"
 fi
 
 if [ ! -d "binutils-$BINUTILS_VER" ]; then
+    echo "Extracting binutils..."
     tar -xzf binutils-$BINUTILS_VER.tar.gz
 fi
 
 if [ ! -d "gcc-$GCC_VER" ]; then
+    echo "Extracting gcc..."
     tar -xzf gcc-$GCC_VER.tar.gz
 fi
 
 if [ ! -f "$BIN_DIR/$TARGET-ld" ]; then
+    echo "Building binutils..."
     mkdir -p binutils-build
     cd binutils-build
     ../binutils-$BINUTILS_VER/configure --target=$TARGET --prefix="$INSTALL_DIR" --with-sysroot --disable-nls --disable-werror > /dev/null 2>&1
@@ -83,6 +103,7 @@ if [ ! -f "$BIN_DIR/$TARGET-ld" ]; then
 fi
 
 if [ ! -f "$BIN_DIR/$TARGET-gcc" ]; then
+    echo "Building GCC..."
     mkdir -p gcc-build
     cd gcc-build
     ../gcc-$GCC_VER/configure --target=$TARGET --prefix="$INSTALL_DIR" --disable-nls --enable-languages=c --without-headers --with-newlib --disable-shared --disable-libssp --disable-libstdcxx-pch --disable-multilib > /dev/null 2>&1
@@ -91,33 +112,34 @@ if [ ! -f "$BIN_DIR/$TARGET-gcc" ]; then
     cd ..
 fi
 
+echo "Creating wrapper scripts..."
+
 cat > "$BIN_DIR/fenwick-gcc" << 'EOF'
 #!/usr/bin/env bash
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$INSTALL_DIR/x86_64-elf-gcc" -ffreestanding -nostdlib -nostartfiles "$@"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$BIN_DIR/../opt/bin/x86_64-elf-gcc" -ffreestanding -nostdlib -nostartfiles "$@"
 EOF
 
 cat > "$BIN_DIR/fenwick-ldd" << 'EOF'
 #!/usr/bin/env bash
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$INSTALL_DIR/x86_64-elf-ld" "$@"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$BIN_DIR/../opt/bin/x86_64-elf-ld" "$@"
 EOF
 
 cat > "$BIN_DIR/fenwind-objcopy" << 'EOF'
 #!/usr/bin/env bash
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$INSTALL_DIR/x86_64-elf-objcopy" "$@"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$BIN_DIR/../opt/bin/x86_64-elf-objcopy" "$@"
 EOF
 
 cat > "$BIN_DIR/fenwick-nasm" << 'EOF'
 #!/usr/bin/env bash
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 exec nasm -f elf64 "$@"
 EOF
 
 cat > "$BIN_DIR/fenwick-cargo" << 'EOF'
 #!/usr/bin/env bash
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -x "$HOME/.cargo/bin/cargo" ]; then
     exec "$HOME/.cargo/bin/cargo" "$@"
 elif command -v cargo >/dev/null 2>&1; then
@@ -130,5 +152,8 @@ EOF
 
 chmod +x "$BIN_DIR/fenwick-gcc" "$BIN_DIR/fenwick-ldd" "$BIN_DIR/fenwind-objcopy" "$BIN_DIR/fenwick-nasm" "$BIN_DIR/fenwick-cargo"
 
-TOOLCHAIN_BIN_WIN="$(cygpath -w "$BIN_DIR")"
-echo "$TOOLCHAIN_BIN_WIN"
+echo ""
+echo "Toolchain ready!"
+echo "BIN_DIR=$BIN_DIR"
+echo ""
+echo "Run: export PATH=\"$BIN_DIR:\$PATH\""
