@@ -207,3 +207,23 @@ pub unsafe extern "C" fn kclear_screen() {
     CURSOR_X = 0;
     CURSOR_Y = 0;
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn print_hex64(mut val: u64) {
+    if val == 0 {
+        kputc(b'0');
+        return;
+    }
+    let mut buf = [0u8; 16];
+    let mut i = 0;
+    while val > 0 {
+        let nibble = (val & 0xF) as u8;
+        buf[i] = if nibble < 10 { b'0' + nibble } else { b'a' + (nibble - 10) };
+        val >>= 4;
+        i += 1;
+    }
+    while i > 0 {
+        i -= 1;
+        kputc(buf[i]);
+    }
+}

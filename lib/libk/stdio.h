@@ -11,6 +11,7 @@ void kprintf(const char* fmt, ...);
 void kprintf_va(const char* fmt, const unsigned long long* args);
 void kset_color(unsigned char color);
 void kclear_screen(void);
+void print_hex64(unsigned long long val);
 
 #ifdef __cplusplus
 }

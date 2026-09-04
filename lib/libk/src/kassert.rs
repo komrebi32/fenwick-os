@@ -9,7 +9,7 @@ pub unsafe extern "C" fn kpanic(msg: *const u8) -> ! {
     }
     PANICED = true;
 
-    kset_color(0x4F);
+    kset_color(0x1F);
     kclear_screen();
     kputs(b"\n*** KERNEL PANIC ***\n\0".as_ptr());
     kputs(msg);
