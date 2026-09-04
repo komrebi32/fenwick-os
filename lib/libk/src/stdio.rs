@@ -6,6 +6,10 @@ static mut CURSOR_X: usize = 0;
 static mut CURSOR_Y: usize = 0;
 static mut CURRENT_COLOR: u8 = 0x0F;
 
+extern "C" {
+    fn serial_putc(c: u8);
+}
+
 #[inline]
 fn vga_index(x: usize, y: usize) -> usize {
     (y * VGA_WIDTH + x) * 2
@@ -39,6 +43,7 @@ unsafe fn scroll_if_needed() {
 
 #[no_mangle]
 pub unsafe extern "C" fn kputc(c: u8) {
+    serial_putc(c);
     match c {
         b'\n' => {
             CURSOR_X = 0;

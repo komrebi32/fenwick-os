@@ -20,6 +20,11 @@ char* kstrrchr(const char* s, int c);
 char* kstrcat(char* dest, const char* src);
 char* kstrncat(char* dest, const char* src, unsigned long n);
 
+#define memset(s, c, n) kmemset((s), (c), (n))
+#define memcpy(d, s, n) kmemcpy((d), (s), (n))
+#define strcmp(s1, s2) kstrcmp((s1), (s2))
+#define strlen(s) kstrlen((s))
+
 #ifdef __cplusplus
 }
 #endif
