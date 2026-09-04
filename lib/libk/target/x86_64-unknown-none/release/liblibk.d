@@ -1,1 +1,0 @@
-/mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/target/x86_64-unknown-none/release/liblibk.a: /mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/src/kassert.rs /mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/src/lib.rs /mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/src/memory.rs /mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/src/stdio.rs /mnt/c/Users/HP/Desktop/FenwickOS/lib/libk/src/string.rs

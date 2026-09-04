@@ -1,0 +1,40 @@
+{
+    "configurations": [
+        {
+            "name": "FenwickOS",
+            "includePath": [
+                "${workspaceFolder}/kernel",
+                "${workspaceFolder}/kernel/gdt",
+                "${workspaceFolder}/lib/libk",
+                "${workspaceFolder}/lib/libc",
+                "${workspaceFolder}/boot"
+            ],
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "x86_64-elf-gcc",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "compilerArgs": [
+                "-m64",
+                "-ffreestanding",
+                "-nostdlib",
+                "-nostdinc",
+                "-fno-stack-protector",
+                "-fno-pic",
+                "-fno-pie",
+                "-mno-red-zone"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/kernel",
+                    "${workspaceFolder}/kernel/gdt",
+                    "${workspaceFolder}/lib/libk",
+                    "${workspaceFolder}/lib/libc",
+                    "${workspaceFolder}/boot"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ],
+    "version": 4
+}

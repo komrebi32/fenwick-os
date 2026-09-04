@@ -1,0 +1,7 @@
+[build]
+target = "x86_64-unknown-none"
+
+[target.x86_64-unknown-none]
+linker = "fenwick-gcc"
+ar = "fenwick-ldd"
+rustflags = ["-C", "relocation-model=static", "-C", "no-redzone"]
