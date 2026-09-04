@@ -1,6 +1,8 @@
-#include "lib/libk/libk.h"
+#include <libk.h>
+#include <gdt.h>
 
 void krnl_main() {
+    gdt_init();
     kclear_screen();
     kset_color(0x1F);
     kputs("========================================\n");
