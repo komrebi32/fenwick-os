@@ -34,7 +34,8 @@ start:
     or eax, (1 << 8) | (1 << 11)
     wrmsr
 
-    lgdt [gdt64.pointer]
+    mov eax, gdt64.pointer
+    lgdt [eax]
 
     mov eax, cr0
     or eax, (1 << 31) | (1 << 0)
@@ -97,7 +98,8 @@ setup_paging:
     mov cr3, eax
     ret
 
-section .text64
+section .text
+global long_mode_entry
 bits 64
 long_mode_entry:
     mov ax, 0x10
@@ -106,6 +108,8 @@ long_mode_entry:
     mov fs, ax
     mov gs, ax
     mov ss, ax
+
+    mov rsp, stack_top64
 
     call krnl_main
 
@@ -123,7 +127,8 @@ gdt64:
     dq 0x00AF93000000FFFF
 .pointer:
     dw .pointer - gdt64 - 1
-    dq gdt64
+    dd gdt64
+    dd 0
 
 section .bss
 align 4096
@@ -136,3 +141,7 @@ pd_table:
 stack_bottom:
     resb 16384
 stack_top:
+
+stack_bottom64:
+    resb 16384
+stack_top64:
