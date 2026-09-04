@@ -28,6 +28,8 @@ BOOT_OBJ = $(BUILD)/bootloader.o
 KERNEL_OBJ = $(BUILD)/kernel.o
 GDT_OBJ = $(BUILD)/gdt.o
 GDT_ASM_OBJ = $(BUILD)/gdt_asm.o
+IDT_OBJ = $(BUILD)/idt.o
+IDT_ASM_OBJ = $(BUILD)/idt_asm.o
 SERIAL_ASM_OBJ = $(BUILD)/serial_asm.o
 LIBK_SHIM_OBJ = $(BUILD)/libk_shim.o
 KERNEL_ELF = $(BUILD)/kernel.elf
@@ -39,16 +41,19 @@ GRUB_CFG = $(GRUB_DIR)/grub.cfg
 CARGO_MANIFEST = lib/libk/Cargo.toml
 CARGO_TARGET = x86_64-unknown-none
 
-CFLAGS = -ffreestanding -m64 -nostdinc -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -Ilib/libk -Ikernel/gdt
+CFLAGS = -ffreestanding -m64 -nostdinc -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -Ilib/libk -Ikernel/gdt -Ikernel/idt
 
 export PATH := toolchain/fenwick-toolchain/bin:$(PATH)
 
-.PHONY: all clean run
+.PHONY: all clean run run-headless
 
 all: $(ISO)
 
 run: $(ISO)
 	qemu-system-x86_64 -cdrom build/FenwickOS.iso -vga std -serial file:build/qemu-serial.log -display gtk -no-shutdown -d int -D build/qemu.log
+
+run-headless: $(ISO)
+	qemu-system-x86_64 -cdrom build/FenwickOS.iso -vga std -serial stdio -display none -no-shutdown
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -69,17 +74,23 @@ $(GDT_OBJ): kernel/gdt/gdt.c | $(BUILD)
 $(GDT_ASM_OBJ): kernel/gdt/gdt.asm | $(BUILD)
 	$(NASM) -f elf64 $< -o $@
 
+$(IDT_OBJ): kernel/idt/idt.c | $(BUILD)
+	$(CC) $(CFLAGS) -Ikernel/idt -c $< -o $@
+
+$(IDT_ASM_OBJ): kernel/idt/idt.asm | $(BUILD)
+	$(NASM) -f elf64 $< -o $@
+
 $(SERIAL_ASM_OBJ): lib/libk/src/serial.asm | $(BUILD)
 	$(NASM) -f elf64 $< -o $@
 
 $(LIBK_SHIM_OBJ): lib/libk/src/libk_shim.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_OBJ): kernel/kernel.c | $(BUILD) $(LIBK_A) $(GDT_OBJ) $(GDT_ASM_OBJ) $(SERIAL_ASM_OBJ)
+$(KERNEL_OBJ): kernel/kernel.c | $(BUILD) $(LIBK_A) $(GDT_OBJ) $(GDT_ASM_OBJ) $(IDT_OBJ) $(IDT_ASM_OBJ) $(SERIAL_ASM_OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_ELF): $(BOOT_OBJ) $(KERNEL_OBJ) $(GDT_OBJ) $(GDT_ASM_OBJ) $(LIBK_SHIM_OBJ) $(SERIAL_ASM_OBJ) $(LIBK_A)
-	$(LD) -nostdlib -T linker.ld -o $@ $(BOOT_OBJ) $(KERNEL_OBJ) $(GDT_OBJ) $(GDT_ASM_OBJ) $(LIBK_SHIM_OBJ) $(SERIAL_ASM_OBJ) $(LIBK_A)
+$(KERNEL_ELF): $(BOOT_OBJ) $(KERNEL_OBJ) $(GDT_OBJ) $(GDT_ASM_OBJ) $(IDT_OBJ) $(IDT_ASM_OBJ) $(LIBK_SHIM_OBJ) $(SERIAL_ASM_OBJ) $(LIBK_A)
+	$(LD) -nostdlib -T linker.ld -o $@ $(BOOT_OBJ) $(KERNEL_OBJ) $(GDT_OBJ) $(GDT_ASM_OBJ) $(IDT_OBJ) $(IDT_ASM_OBJ) $(LIBK_SHIM_OBJ) $(SERIAL_ASM_OBJ) $(LIBK_A)
 
 $(GRUB_CFG): | $(GRUB_DIR)
 	echo 'set timeout=0' > $@

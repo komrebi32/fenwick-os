@@ -8,6 +8,7 @@ SECTIONS
     .boot :
     {
         *(.boot)
+        *(.multiboot)
         *(.text .text.*)
     }
 
