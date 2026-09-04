@@ -24,4 +24,7 @@ void idt_install(void);
 void isr_handler(uint64_t int_no, uint64_t err_code);
 void irq_handler(uint64_t int_no);
 
+uint64_t timer_get_ticks(void);
+void timer_wait(uint64_t ms);
+
 #endif

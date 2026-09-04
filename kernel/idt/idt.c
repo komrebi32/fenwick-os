@@ -1,4 +1,6 @@
 #include "idt.h"
+#include "panic.h"
+#include "kbd.h"
 #include <libk.h>
 
 static struct idt_entry idt_entries[IDT_ENTRIES];
@@ -88,6 +90,26 @@ static void pic_send_eoi(uint8_t irq) {
     outb(0x20, 0x20);
 }
 
+static void pit_init(uint32_t frequency) {
+    uint32_t divisor = 1193180 / frequency;
+    outb(0x43, 0x36);
+    outb(0x40, divisor & 0xFF);
+    outb(0x40, (divisor >> 8) & 0xFF);
+}
+
+volatile uint64_t timer_ticks = 0;
+
+uint64_t timer_get_ticks(void) {
+    return timer_ticks;
+}
+
+void timer_wait(uint64_t ms) {
+    uint64_t target = timer_ticks + ms / 10;
+    while (timer_ticks < target) {
+        asm volatile("hlt");
+    }
+}
+
 static const char *exception_messages[32] = {
     "Division By Zero",
     "Debug",
@@ -124,24 +146,49 @@ static const char *exception_messages[32] = {
 };
 
 void isr_handler(uint64_t int_no, uint64_t err_code) {
-    kset_color(0x0C);
-    kprintf("\n[ FAIL ] CPU Exception: %s (INT #%d, Error code: %d)\n",
-            exception_messages[int_no], int_no, err_code);
-    kputs("System halted.\n");
-    asm volatile("cli; hlt");
-    while (1);
+    switch (int_no) {
+        case 8:
+            panic_handler("Double Fault - Critical error detected", int_no, err_code);
+            break;
+        case 13:
+            panic_handler("General Protection Fault - Memory protection violated", int_no, err_code);
+            break;
+        case 14:
+            panic_handler("Page Fault - Invalid memory access", int_no, err_code);
+            break;
+        case 18:
+            panic_handler("Machine Check - Hardware failure", int_no, err_code);
+            break;
+        case 0:
+            panic_handler("Division By Zero", int_no, err_code);
+            break;
+        case 6:
+            panic_handler("Invalid Opcode", int_no, err_code);
+            break;
+        case 12:
+            panic_handler("Stack-Segment Fault", int_no, err_code);
+            break;
+        default:
+            panic_handler(exception_messages[int_no], int_no, err_code);
+            break;
+    }
 }
 
 void irq_handler(uint64_t int_no) {
     kset_color(0x07);
     switch (int_no) {
-        case 32: kputs("[ IRQ0 ] PIT Timer\n"); break;
-        case 33: kputs("[ IRQ1 ] Keyboard\n"); break;
-        case 40: kputs("[ IRQ8 ] CMOS RTC\n"); break;
-        case 44: kputs("[IRQ12 ] PS/2 Mouse\n"); break;
-        default: break;
+        case 32:
+            timer_ticks++;
+            pic_send_eoi(0);
+            return;
+        case 33:
+            kbd_handler();
+            pic_send_eoi(1);
+            return;
+        default:
+            pic_send_eoi(int_no - 32);
+            return;
     }
-    pic_send_eoi(int_no - 32);
 }
 
 void idt_install(void) {
@@ -285,10 +332,19 @@ void idt_install(void) {
     }
 
     pic_remap();
-    asm volatile("sti");
+
+    outb(0x21, 0xFF);
+    outb(0xA1, 0xFF);
+
+    pit_init(100);
 
     idt_descriptor.limit = (sizeof(idt_entries) - 1);
     idt_descriptor.base = (uint64_t)&idt_entries;
 
     idt_load_asm(&idt_descriptor);
+
+    outb(0x21, 0x00);
+    outb(0xA1, 0x00);
+
+    asm volatile("sti");
 }
