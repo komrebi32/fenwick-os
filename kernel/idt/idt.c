@@ -175,20 +175,19 @@ void isr_handler(uint64_t int_no, uint64_t err_code) {
 }
 
 void irq_handler(uint64_t int_no) {
-    kset_color(0x07);
-    switch (int_no) {
-        case 32:
-            timer_ticks++;
-            pic_send_eoi(0);
-            return;
-        case 33:
-            kbd_handler();
-            pic_send_eoi(1);
-            return;
-        default:
-            pic_send_eoi(int_no - 32);
-            return;
+    if (int_no == 32) {
+        timer_ticks++;
+        pic_send_eoi(0);
+        return;
     }
+
+    if (int_no == 33) {
+        kbd_handler();
+        pic_send_eoi(1);
+        return;
+    }
+
+    pic_send_eoi(int_no - 32);
 }
 
 void idt_install(void) {
