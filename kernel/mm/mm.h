@@ -56,18 +56,10 @@ void mm_start(void);
 int  mm_is_ready(void);
 void mm_print_stats(void);
 
-uint64_t mm_alloc_page(void);
-void mm_free_page(uint64_t phys);
-
-void *mm_map_page(uint64_t phys, uint64_t virt, uint64_t flags);
-void *mm_unmap_page(uint64_t virt);
-
-void *kmalloc(uint64_t size);
+void *mm_alloc_page_aligned(uint64_t virt_hint);
+void *kmalloc_aligned(uint64_t size, uint64_t alignment);
 void  kfree(void *ptr);
 
-void paging_switch_directory(struct page_directory *dir);
-void paging_invalidate(uint64_t virt);
-
-void mm_dump_page_table(uint64_t virt);
+void heap_print_blocks(void);
 
 #endif

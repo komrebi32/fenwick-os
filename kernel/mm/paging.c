@@ -3,6 +3,9 @@
 
 #define PAGES_TOTAL MAX_PAGES
 
+#define MAX_PHYS_PAGES  262144
+#define RAM_SIZE_GB     1
+
 static struct phys_mem_region phys_regions[MAX_REGIONS];
 static int phys_region_count = 0;
 
@@ -10,6 +13,11 @@ static struct page pages[MAX_PAGES];
 static uint8_t page_bitmap[MAX_PAGES / 8];
 
 static struct page_directory *current_dir = 0;
+
+static void heap_init(void);
+static struct heap_block *heap_find_best_fit(uint64_t size);
+static void heap_split_block(struct heap_block *block, uint64_t size);
+static void paging_invalidate(uint64_t virt);
 
 static inline void *phys_to_virt(uint64_t phys) {
     return (void *)phys;
@@ -48,17 +56,26 @@ void mm_init(void) {
     phys_regions[phys_region_count].used = 1;
     phys_region_count++;
 
-    for (uint64_t p = 0x200000; p < PHYS_MEM_SIZE; p += PAGE_SIZE) {
+    uint64_t map_end = (uint64_t)RAM_SIZE_GB * 1024ULL * 1024ULL * 1024ULL;
+    if (map_end > (uint64_t)MAX_PHYS_PAGES * PAGE_SIZE) {
+        map_end = (uint64_t)MAX_PHYS_PAGES * PAGE_SIZE;
+    }
+
+    for (uint64_t p = 0x200000; p < map_end; p += PAGE_SIZE) {
         int idx = p / PAGE_SIZE;
-        page_bitmap[idx / 8] |= (1 << (idx % 8));
-        pages[idx].present = 1;
+        if (idx < PAGES_TOTAL) {
+            page_bitmap[idx / 8] |= (1 << (idx % 8));
+            pages[idx].present = 1;
+        }
     }
 
     phys_regions[phys_region_count].base = 0x200000;
-    phys_regions[phys_region_count].size = PHYS_MEM_SIZE - 0x200000;
+    phys_regions[phys_region_count].size = map_end - 0x200000;
     phys_regions[phys_region_count].type = 2;
     phys_regions[phys_region_count].used = 0;
     phys_region_count++;
+
+    kprintf("  Mapped %d MB of physical memory\n", (int)(map_end / (1024 * 1024)));
 }
 
 uint64_t mm_alloc_page(void) {
@@ -170,7 +187,13 @@ void paging_init(void) {
     cr4 |= (1 << 4) | (1 << 5);
     asm volatile("mov %0, %%cr4" : : "r"(cr4));
 
+    heap_init();
+
     current_dir = &kernel_dir;
+
+    kprintf("  Paging: identity-mapped first 2MB (2MB pages)\n");
+    kprintf("  Paging: extended to %d MB with 2MB pages\n",
+            (int)((uint64_t)RAM_SIZE_GB * 1024));
 }
 
 void mm_dump_page_table(uint64_t virt) {
@@ -204,4 +227,91 @@ void mm_print_stats(void) {
     kprintf("  Free pages:  %d (%d KB)\n", free, free * 4);
     kprintf("  Regions:     %d\n", phys_region_count);
     kprintf("  Page size:   %d bytes\n", (int)PAGE_SIZE);
+}
+
+#define HEAP_BLOCK_MAGIC 0xDEADBEEF12345678ULL
+
+struct heap_block {
+    uint64_t magic;
+    uint64_t size;
+    uint8_t  is_free;
+    uint8_t  reserved[7];
+    struct heap_block *next;
+    struct heap_block *prev;
+};
+
+static struct heap_block *heap_head = 0;
+static uint64_t heap_total = 0;
+static uint64_t heap_used = 0;
+static uint64_t heap_free_bytes = 0;
+
+void heap_init(void) {
+    heap_head = (struct heap_block *)HEAP_START;
+    heap_head->magic = HEAP_BLOCK_MAGIC;
+    heap_head->size = HEAP_SIZE - sizeof(struct heap_block);
+    heap_head->is_free = 1;
+    heap_head->next = 0;
+    heap_head->prev = 0;
+    heap_total = HEAP_SIZE;
+    heap_used = sizeof(struct heap_block);
+    heap_free_bytes = heap_head->size;
+}
+
+static struct heap_block *heap_find_best_fit(uint64_t size) {
+    struct heap_block *best = 0;
+    struct heap_block *cur = heap_head;
+    while (cur) {
+        if (cur->is_free && cur->size >= size) {
+            if (!best || cur->size < best->size) {
+                best = cur;
+                if (best->size == size) break;
+            }
+        }
+        cur = cur->next;
+    }
+    return best;
+}
+
+static void heap_split_block(struct heap_block *block, uint64_t size) {
+    if (block->size <= size + sizeof(struct heap_block) + 16) return;
+
+    uint8_t *base = (uint8_t *)block;
+    uint64_t old_size = block->size;
+
+    struct heap_block *new_block = (struct heap_block *)(base + sizeof(struct heap_block) + size);
+    new_block->magic = HEAP_BLOCK_MAGIC;
+    new_block->size = old_size - size - sizeof(struct heap_block);
+    new_block->is_free = 1;
+    new_block->next = block->next;
+    new_block->prev = block;
+
+    if (block->next) {
+        block->next->prev = new_block;
+    }
+    block->next = new_block;
+    block->size = size;
+
+    heap_free_bytes = new_block->size;
+}
+
+void *kmalloc_aligned(uint64_t size, uint64_t alignment);
+
+void heap_print_blocks(void) {
+    kset_color(0x0F);
+    kputs("Heap Status:\n");
+    kprintf("  Total:    %d bytes\n", (int)heap_total);
+    kprintf("  Used:     %d bytes\n", (int)heap_used);
+    kprintf("  Free:     %d bytes\n", (int)heap_free_bytes);
+
+    int count = 0;
+    struct heap_block *cur = heap_head;
+    while (cur) {
+        kprintf("  Block %d: addr=0x%llx size=%d %s\n",
+                count,
+                (unsigned long long)(uint64_t)cur,
+                (int)cur->size,
+                cur->is_free ? "FREE" : "USED");
+        count++;
+        cur = cur->next;
+    }
 }
